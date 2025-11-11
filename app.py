@@ -3,29 +3,50 @@ import os
 import json
 import boto3
 from datetime import datetime
+from dotenv import load_dotenv
 from src.bda_client import get_aws_account_id, invoke_data_automation, wait_for_data_automation_to_complete
 from src.result_processor import process_bda_results
 
-# Configuration
-AWS_REGION = 'us-east-1'
-BUCKET_NAME = 'lufng-bedrock-data-automation'
-INPUT_PATH = 'BDA/Input/ruter_invoices'
-OUTPUT_PATH = 'BDA/Output/ruter_invoices'
+# Load environment variables from .env file
+load_dotenv()
 
-PROJECT_ID = 'a0fbb83f9473'
-BLUEPRINT_NAME = 'ruter_invoice_blueprint'
+def load_config():
+    """Load configuration from environment variables with validation"""
+    required_vars = {
+        'AWS_REGION': os.getenv('AWS_REGION'),
+        'BUCKET_NAME': os.getenv('BUCKET_NAME'),
+        'PROJECT_ID': os.getenv('PROJECT_ID'),
+    }
+    
+    # Check for missing required variables
+    missing_vars = [var for var, value in required_vars.items() if not value]
+    if missing_vars:
+        print(f"Error: Missing required environment variables: {', '.join(missing_vars)}")
+        print("Please set the following environment variables:")
+        for var in missing_vars:
+            print(f"  export {var}=<your_value>")
+        sys.exit(1)
+    
+    # Load configuration with defaults for optional variables
+    config = {
+        'AWS_REGION': required_vars['AWS_REGION'],
+        'BUCKET_NAME': required_vars['BUCKET_NAME'],
+        'PROJECT_ID': required_vars['PROJECT_ID'],
+        'INPUT_PATH': os.getenv('INPUT_PATH', 'BDA/Input/ruter_invoices'),
+        'OUTPUT_PATH': os.getenv('OUTPUT_PATH', 'BDA/Output/ruter_invoices'),
+        'BLUEPRINT_NAME': os.getenv('BLUEPRINT_NAME', 'ruter_invoice_blueprint'),
+        'BLUEPRINT_FIELDS': os.getenv('BLUEPRINT_FIELDS', 'invoice_amount,purchase_date,ticket_number').split(',')
+    }
+    
+    return config
 
-# Fields to display
-BLUEPRINT_FIELDS = [
-    'invoice_amount',
-    'purchase_date',
-    'ticket_number'
-]
+# Load configuration
+config = load_config()
 
-def upload_file_to_s3(file_path, s3_key):
+def upload_file_to_s3(file_path, s3_key, config):
     """Upload file to S3"""
-    s3 = boto3.client('s3', region_name=AWS_REGION)
-    s3.upload_file(file_path, BUCKET_NAME, s3_key)
+    s3 = boto3.client('s3', region_name=config['AWS_REGION'])
+    s3.upload_file(file_path, config['BUCKET_NAME'], s3_key)
 
 def append_result_to_batch(result_file_path, result_data):
     """Append result to batch result file"""
@@ -40,7 +61,7 @@ def append_result_to_batch(result_file_path, result_data):
     with open(result_file_path, 'w') as f:
         json.dump(results, f, indent=2)
 
-def process_batch_folder(batch_name):
+def process_batch_folder(batch_name, config):
     """Process all files in a batch folder"""
     input_folder = f"input/{batch_name}"
     
@@ -65,7 +86,7 @@ def process_batch_folder(batch_name):
     print(f"Results will be saved to: {result_file_path}")
     
     aws_account_id = get_aws_account_id()
-    data_automation_arn = f"arn:aws:bedrock:{AWS_REGION}:{aws_account_id}:data-automation-project/{PROJECT_ID}"
+    data_automation_arn = f"arn:aws:bedrock:{config['AWS_REGION']}:{aws_account_id}:data-automation-project/{config['PROJECT_ID']}"
     processed_count = 0
     
     for i, filename in enumerate(files, 1):
@@ -73,23 +94,23 @@ def process_batch_folder(batch_name):
         
         # Upload file to S3
         local_file_path = os.path.join(input_folder, filename)
-        s3_key = f"{INPUT_PATH}/{batch_name}/{filename}"
-        upload_file_to_s3(local_file_path, s3_key)
+        s3_key = f"{config['INPUT_PATH']}/{batch_name}/{filename}"
+        upload_file_to_s3(local_file_path, s3_key, config)
         print(f"Uploaded to S3: {s3_key}")
         
         # Process with Bedrock Data Automation
-        input_s3_uri = f"s3://{BUCKET_NAME}/{s3_key}"
-        output_s3_uri = f"s3://{BUCKET_NAME}/{OUTPUT_PATH}"
+        input_s3_uri = f"s3://{config['BUCKET_NAME']}/{s3_key}"
+        output_s3_uri = f"s3://{config['BUCKET_NAME']}/{config['OUTPUT_PATH']}"
         
         print(f"Invoking Bedrock Data Automation for '{filename}'", end='', flush=True)
         
         try:
-            data_automation_response = invoke_data_automation(input_s3_uri, output_s3_uri, data_automation_arn, aws_account_id, AWS_REGION)
-            data_automation_status = wait_for_data_automation_to_complete(data_automation_response['invocationArn'], AWS_REGION)
+            data_automation_response = invoke_data_automation(input_s3_uri, output_s3_uri, data_automation_arn, aws_account_id, config['AWS_REGION'])
+            data_automation_status = wait_for_data_automation_to_complete(data_automation_response['invocationArn'], config['AWS_REGION'])
             
             if data_automation_status['status'] == 'Success':
                 job_metadata_s3_uri = data_automation_status['outputConfiguration']['s3Uri']
-                result_data = process_bda_results(job_metadata_s3_uri, filename, BLUEPRINT_NAME, BLUEPRINT_FIELDS)
+                result_data = process_bda_results(job_metadata_s3_uri, filename, config['BLUEPRINT_NAME'], config['BLUEPRINT_FIELDS'])
                 
                 # Append to batch result file
                 if result_data:
@@ -117,7 +138,7 @@ def main():
         sys.exit(1)
       
     batch_name = sys.argv[1]
-    process_batch_folder(batch_name)
+    process_batch_folder(batch_name, config)
 
 if __name__ == "__main__":
     main()

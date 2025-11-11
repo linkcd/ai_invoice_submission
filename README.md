@@ -23,7 +23,13 @@ cd invoice-submission
 uv sync
 ```
 
-3. Configure AWS credentials:
+3. Configure environment variables:
+```bash
+cp .env.example .env
+# Edit .env with your values
+```
+
+4. Configure AWS credentials:
    - Make sure you have AWS CLI installed and configured
    - Set up your AWS credentials with appropriate permissions for Bedrock and S3 services
 
@@ -45,12 +51,34 @@ invoice_submission/
 
 ## Configuration
 
-Before running the application, update the following variables in `app.py`:
+The application uses environment variables for configuration. Set the following required variables:
 
+### Required Environment Variables:
 - `AWS_REGION`: Your AWS region (e.g., 'us-east-1')
 - `BUCKET_NAME`: Your S3 bucket name
 - `PROJECT_ID`: Your Bedrock Data Automation project ID
-- `BLUEPRINT_NAME`: The name of your data automation blueprint (default: 'ruter_invoice_blueprint')
+
+### Optional Environment Variables (with defaults):
+- `INPUT_PATH`: S3 input path (default: 'BDA/Input/ruter_invoices')
+- `OUTPUT_PATH`: S3 output path (default: 'BDA/Output/ruter_invoices')
+- `BLUEPRINT_NAME`: Blueprint name (default: 'ruter_invoice_blueprint')
+- `BLUEPRINT_FIELDS`: Comma-separated fields (default: 'invoice_amount,purchase_date,ticket_number')
+
+### Setting Environment Variables:
+
+**Option 1: Using .env file (recommended)**
+```bash
+cp .env.example .env
+# Edit .env with your actual values
+# No need to source - automatically loaded by the application
+```
+
+**Option 2: Export directly**
+```bash
+export AWS_REGION=us-east-1
+export BUCKET_NAME=your-s3-bucket-name
+export PROJECT_ID=your-bedrock-project-id
+```
 
 ## Usage
 
@@ -64,7 +92,6 @@ mkdir -p input/batch1
 
 2. Run the application with a batch folder name:
 ```bash
-uv sync
 uv run python app.py batch1
 ```
 
@@ -134,15 +161,19 @@ To enable detailed logging, set `DEBUG = True` in `src/bda_client.py`. This will
 # Install dependencies
 uv sync
 
-# Add new dependency
-uv add package-name
+# Set up environment variables
+cp .env.example .env
+# Edit .env with your values
 
 # Run the application
 uv run python app.py batch1
 
-# Activate virtual environment (alternative)
+# Alternative: activate environment first
 source .venv/bin/activate  # or uv shell
 python app.py batch1
+
+# Add new dependency
+uv add package-name
 ```
 
 ### Project Commands
