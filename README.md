@@ -27,7 +27,7 @@ This solution automates the entire invoice processing workflow using:
 flowchart TD
     A["Original invoice PDF"] --> PY["Python App"]
     
-    subgraph PY["`Phase 1: Extract Invoice Info`"]
+    subgraph PY["Phase_1_Extract_Invoice_Info"]
         B["Upload to S3"]
         C["Bedrock Data Automation"]
         B --> C
@@ -36,7 +36,7 @@ flowchart TD
     PY --> D["Generated Json File<br/>- Invoice Amount<br/>- Purchase Date<br/>- Ticket Number"]
     D --> MCP["MCP Client"]
     
-    subgraph MCP["`Phase 2: Web Form Submission`"]
+    subgraph MCP["`Phase_2_Web_Form_Submission`"]
         E["Amazon Q + Playwright MCP"]
     end
     
