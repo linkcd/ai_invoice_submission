@@ -1,4 +1,4 @@
-# Amazon Bedrock Data Automation - Invoice Processing
+# AI Invoice Submission
 
 An end-to-end automation solution for processing invoice documents using Amazon Bedrock Data Automation and Playwright MCP for automated form submission.
 
